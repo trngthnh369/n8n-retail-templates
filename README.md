@@ -28,8 +28,8 @@ Nodes that need credentials are disabled by default and labelled `LIVE`, so the 
 ## Validation
 
 Each file was validated offline with `n8nctl workflow validate <file>`.
-The Code node logic was run outside n8n against the demo data.
-The workflows were not executed inside an n8n instance.
+All three were imported into a clean n8n 2.48.4 container and executed in demo mode with `n8n execute`; every node finished with status success (2026-11-17).
+The live-mode nodes (Shopify, Telegram, Slack, Google Sheets, Anthropic) were not executed, because they need real credentials.
 See each README for what was not verified.
 
 ## License
