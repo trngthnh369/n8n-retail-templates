@@ -1,0 +1,640 @@
+{
+  "name": "Daily Sales Brief Agent (demo + live)",
+  "nodes": [
+    {
+      "id": "f3688fc0-05ff-4a22-8d3a-b5f2f02f4970",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -420
+      ],
+      "parameters": {
+        "content": "## Daily Sales Brief Agent\nEvery morning at 07:00 it reads yesterday's orders, computes the KPIs in code and posts a short brief to Telegram or Slack. The LLM only writes the wording. It never calculates.\n\n**Runs with no credentials.** Click \"Test workflow\" on the Manual Trigger. The demo uses synthetic orders for the last 9 days, builds the brief from a template (no LLM) and returns JSON. Nothing is sent.\n\n### Setup (live)\n1. In **Config** set `mode` to `live`, set `timezone` (for example Europe/Berlin), `currency`, `deliveryChannel` (telegram or slack) and the matching chat / channel id.\n2. Enable **Shopify: Get Orders (LIVE)** and select a Shopify Access Token credential. It reads the last 9 days of orders, which covers yesterday, the day before and the same weekday last week.\n3. Enable **Telegram: Send Brief (LIVE)** or **Slack: Send Brief (LIVE)** and select a credential.\n4. Optional LLM: set `useLlm` to true, enable **Anthropic: Write Brief** and select a Header Auth credential (name \"x-api-key\"). Set `llmModel`.\n5. LIVE nodes are disabled by default so the editor does not ask for credentials. Activate the workflow. The schedule runs at 07:00 in the workflow timezone (Settings > Timezone). Keep it equal to Config.timezone.",
+        "height": 420,
+        "width": 680,
+        "color": 4
+      }
+    },
+    {
+      "id": "a3d7143c-e5ca-42f6-8a30-4753f9aa1c19",
+      "name": "Note - KPIs",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {
+        "content": "### Definitions (Code node \"Compute KPIs\")\n- counted order: not cancelled, not a test order\n- revenue: sum of total_price; AOV: revenue / orders\n- day: calendar date in Config.timezone; yesterday = today minus 1 day\n- compared with the day before and with the same weekday last week; the change is n/a when the base period has no orders\n- channel: source_name \"pos\" = Retail (POS), otherwise Online\n- top products by line price * quantity - line discount",
+        "height": 330,
+        "width": 540,
+        "color": 7
+      }
+    },
+    {
+      "id": "13d68727-a497-4e33-8a41-5e3ad16538d3",
+      "name": "Note - LLM rule",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        480
+      ],
+      "parameters": {
+        "content": "### Facts-only rule\nThe LLM system prompt (see node \"Build Prompt\") says: use only numbers and names in FACTS_JSON, never calculate, estimate, round differently or abbreviate, write n/a for null values, no causes and no advice.\nThe reply is then checked in \"Finalize Brief\": 3 to 12 lines and every number must exist in the facts (within its own rounding). If a check fails, or the LLM is off or errors, the template brief is used and summary_note says why. The check covers numbers, not wording: it cannot tell \"up\" from \"down\".",
+        "height": 320,
+        "width": 560,
+        "color": 6
+      }
+    },
+    {
+      "id": "681f01c4-bdf8-4815-8ab8-ee15c40916e6",
+      "name": "Schedule Trigger (daily 07:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "778f352f-a183-426a-82de-c43aced72cc3",
+      "name": "Manual Trigger (demo run)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        360
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "f8141878-a708-4666-879a-0f9305815cbb",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        280
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2247eb34-730b-4f9c-8549-0a860157762d",
+              "name": "mode",
+              "value": "demo",
+              "type": "string"
+            },
+            {
+              "id": "033d5621-d682-4a67-819f-bb0347ae8152",
+              "name": "brandName",
+              "value": "Example Brand",
+              "type": "string"
+            },
+            {
+              "id": "a6cc2301-4b35-4185-8050-4b92ae2d2696",
+              "name": "timezone",
+              "value": "UTC",
+              "type": "string"
+            },
+            {
+              "id": "c5ca1c17-fd0d-4e3a-87bf-d7b2340753fc",
+              "name": "currency",
+              "value": "USD",
+              "type": "string"
+            },
+            {
+              "id": "6eafcd70-3cbd-43e6-82c1-ed432bec9028",
+              "name": "topN",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "130c75a2-5ed4-475b-8545-188a086a8f7d",
+              "name": "useLlm",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "ef01f070-20c9-4ab8-844f-ac22ee1977a8",
+              "name": "llmModel",
+              "value": "claude-sonnet-5-5",
+              "type": "string"
+            },
+            {
+              "id": "3bc38b47-d926-473b-80af-9ba788aa4528",
+              "name": "deliveryChannel",
+              "value": "telegram",
+              "type": "string"
+            },
+            {
+              "id": "1e90ae2b-2bf6-4b9a-892c-87d30e29575b",
+              "name": "telegramChatId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "bd87d400-bdea-485a-89f3-430d1d036991",
+              "name": "slackChannelId",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "8f3fe0fe-3e4c-454f-874b-48b3fb081ac7",
+      "name": "Mode is live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9fc02c5b-d743-40b6-8666-8b1ab0d2b601",
+              "leftValue": "={{ $json.mode }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "live"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cc952c94-998c-43fa-8090-27c15577f232",
+      "name": "Shopify: Get Orders (LIVE - disabled)",
+      "type": "n8n-nodes-base.shopify",
+      "typeVersion": 1,
+      "position": [
+        780,
+        200
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "order",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "status": "any",
+          "createdAtMin": "={{ $now.minus({ days: 9 }).toISO() }}"
+        }
+      },
+      "disabled": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "ad094fce-5798-43dd-8647-c43fd660adfd",
+      "name": "Demo Orders (DEFAULT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        380
+      ],
+      "parameters": {
+        "jsCode": "// DEMO DATA - synthetic orders for the last 9 local days (today is partial and ignored by the brief).\n// Shape mimics a Shopify order payload. Deterministic seed; dates are relative to the run date.\nfunction makeRng(seed) {\n  let s = seed >>> 0;\n  return function () {\n    s = (s + 0x6d2b79f5) >>> 0;\n    let t = s;\n    t = Math.imul(t ^ (t >>> 15), t | 1);\n    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);\n    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\n  };\n}\nconst rand = makeRng(424242);\nconst pad = (n, w) => String(n).padStart(w, '0');\nconst tz = String($('Config').first().json.timezone);\n\nconst keyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });\nconst hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' });\nconst localKey = (ms) => keyFmt.format(new Date(ms));\nconst localHour = (ms) => Number(hourFmt.format(new Date(ms)));\n// Find an instant whose local date is `key` and local hour is `hour`.\nfunction instantFor(key, hour, minute) {\n  const base = Date.parse(key + 'T' + pad(hour, 2) + ':00:00Z');\n  for (let off = -14; off <= 14; off++) {\n    const cand = base - off * 3600 * 1000;\n    if (localKey(cand) === key && localHour(cand) === hour) return cand + minute * 60 * 1000;\n  }\n  return base;\n}\n\nconst products = Array.from({ length: 20 }, (_, i) => ({\n  sku: 'SKU-' + (1001 + i),\n  title: 'Sample Product ' + pad(i + 1, 2),\n  price: 35 + ((i * 37) % 21) * 9,\n  weight: 1 / (1 + i * 0.35), // a few products sell much more than the rest\n}));\nconst totalWeight = products.reduce((n, p) => n + p.weight, 0);\nfunction pickProduct() {\n  let r = rand() * totalWeight;\n  for (const p of products) {\n    r -= p.weight;\n    if (r <= 0) return p;\n  }\n  return products[0];\n}\nconst dayFactor = [1.15, 0.9, 0.95, 1.0, 1.05, 1.3, 1.45]; // Sun..Sat\nconst stores = Array.from({ length: 12 }, (_, i) => 'Store A' + pad(i + 1, 2));\n\nconst out = [];\nlet id = 700000;\nconst nowMs = Date.now();\nfor (let d = 1; d <= 9; d++) {\n  const key = localKey(nowMs - d * 24 * 3600 * 1000);\n  const weekday = new Date(key + 'T00:00:00Z').getUTCDay();\n  const count = Math.round(110 * dayFactor[weekday] * (0.9 + rand() * 0.2));\n  for (let n = 0; n < count; n++) {\n    const isOnline = rand() < 0.32;\n    const lines = [];\n    const lineCount = 1 + Math.floor(rand() * 3);\n    let gross = 0;\n    for (let k = 0; k < lineCount; k++) {\n      const p = pickProduct();\n      const qty = 1 + (rand() < 0.2 ? 1 : 0);\n      gross += p.price * qty;\n      lines.push({ sku: p.sku, title: p.title, quantity: qty, price: p.price.toFixed(2), total_discount: '0.00' });\n    }\n    const discount = rand() < 0.25 ? Math.round(gross * (5 + Math.floor(rand() * 20))) / 100 : 0;\n    id += 1;\n    out.push({\n      json: {\n        id: id,\n        name: '#' + (id - 600000),\n        created_at: new Date(instantFor(key, 9 + Math.floor(rand() * 12), Math.floor(rand() * 60))).toISOString(),\n        source_name: isOnline ? 'web' : 'pos',\n        cancelled_at: rand() < 0.03 ? new Date(nowMs).toISOString() : null,\n        test: false,\n        currency: 'USD',\n        total_discounts: discount.toFixed(2),\n        total_price: (gross - discount).toFixed(2),\n        note_attributes: isOnline ? [] : [{ name: 'store', value: stores[Math.floor(rand() * 12)] }],\n        line_items: lines,\n      },\n    });\n  }\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "f8690816-aac2-420b-8aca-2705b5c19bab",
+      "name": "Compute KPIs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// All numbers in the brief are computed here, deterministically. The LLM never calculates anything.\n//\n// Definitions\n//   order counted : not cancelled (cancelled_at empty) and not a test order\n//   revenue       : sum of total_price of counted orders (what the customer paid, shipping and tax as in the order total)\n//   AOV           : revenue / orders\n//   day           : calendar date in Config.timezone; \"yesterday\" = today - 1 day\n//   comparisons   : yesterday vs the day before, and yesterday vs the same weekday one week earlier\n//   channel       : source_name \"pos\" = Retail (POS), anything else = Online\n//   product value : line price * quantity - line total_discount\nconst cfg = $('Config').first().json;\nconst tz = String(cfg.timezone);\nconst currency = String(cfg.currency);\nconst topN = Number(cfg.topN);\n\nconst round2 = (n) => Math.round(n * 100) / 100;\nconst round1 = (n) => Math.round(n * 10) / 10;\nconst text = (v) => (v === undefined || v === null ? '' : String(v).trim());\n\nconst keyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });\nconst localKey = (ms) => keyFmt.format(new Date(ms));\nconst shift = (key, days) => {\n  const d = new Date(key + 'T00:00:00Z');\n  d.setUTCDate(d.getUTCDate() + days);\n  return d.toISOString().slice(0, 10);\n};\nconst WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst weekdayOf = (key) => WEEKDAYS[new Date(key + 'T00:00:00Z').getUTCDay()];\n\nconst today = localKey(Date.now());\nconst day = shift(today, -1);\nconst dayBefore = shift(day, -1);\nconst lastWeek = shift(day, -7);\n\nfunction storeOf(o) {\n  if (text(o.source_name).toLowerCase() !== 'pos') return 'Online';\n  const attrs = Array.isArray(o.note_attributes) ? o.note_attributes : [];\n  const attr = attrs.find((a) => a && String(a.name).toLowerCase() === 'store');\n  if (attr && text(attr.value)) return text(attr.value);\n  if (text(o.store_name)) return text(o.store_name);\n  if (o.location_id) return 'Location ' + o.location_id;\n  return 'Retail (unassigned)';\n}\n\nconst valid = $input.all().map((i) => i.json).filter(\n  (o) => o && o.created_at && !o.cancelled_at && o.test !== true && Number.isFinite(Number(o.total_price))\n);\nconst byDay = {};\nfor (const o of valid) {\n  const k = localKey(Date.parse(o.created_at));\n  (byDay[k] || (byDay[k] = [])).push(o);\n}\nfunction metrics(key) {\n  const list = byDay[key] || [];\n  const revenue = list.reduce((n, o) => n + Number(o.total_price), 0);\n  const units = list.reduce((n, o) => n + (o.line_items || []).reduce((m, l) => m + Number(l.quantity || 0), 0), 0);\n  return { orders: list.length, revenue: round2(revenue), aov: list.length ? round2(revenue / list.length) : null, units: units };\n}\nfunction delta(cur, base) {\n  if (base === null || base === undefined || cur === null || cur === undefined) return { abs: null, pct: null, direction: 'n/a' };\n  const abs = round2(cur - base);\n  const pct = base === 0 ? null : round1(((cur - base) / base) * 100);\n  return { abs: abs, pct: pct, direction: abs > 0 ? 'up' : abs < 0 ? 'down' : 'flat' };\n}\nfunction compare(key) {\n  const m = metrics(key);\n  const y = metrics(day);\n  const has = m.orders > 0;\n  return {\n    date: key,\n    weekday: weekdayOf(key),\n    orders: m.orders,\n    revenue: m.revenue,\n    aov: m.aov,\n    revenue_change: has ? delta(y.revenue, m.revenue) : delta(null, null),\n    orders_change: has ? delta(y.orders, m.orders) : delta(null, null),\n    aov_change: has ? delta(y.aov, m.aov) : delta(null, null),\n  };\n}\n\nconst y = metrics(day);\nconst list = byDay[day] || [];\n\n// products\nconst prod = {};\nfor (const o of list) {\n  for (const l of o.line_items || []) {\n    const key = text(l.sku) || text(l.title);\n    const p = prod[key] || (prod[key] = { sku: text(l.sku) || null, title: text(l.title), units: 0, revenue: 0 });\n    const qty = Number(l.quantity || 0);\n    p.units += qty;\n    p.revenue += Number(l.price || 0) * qty - Number(l.total_discount || 0);\n  }\n}\nconst productTotal = Object.values(prod).reduce((n, p) => n + p.revenue, 0);\nconst topProducts = Object.values(prod)\n  .sort((a, b) => b.revenue - a.revenue || a.title.localeCompare(b.title))\n  .slice(0, topN)\n  .map((p, i) => ({\n    rank: i + 1, sku: p.sku, title: p.title, units: p.units, revenue: round2(p.revenue),\n    share_of_product_revenue_pct: productTotal ? round1((p.revenue / productTotal) * 100) : null,\n  }));\n\n// split helpers\nfunction split(keyFn) {\n  const g = {};\n  for (const o of list) {\n    const k = keyFn(o);\n    const e = g[k] || (g[k] = { name: k, orders: 0, revenue: 0 });\n    e.orders += 1;\n    e.revenue += Number(o.total_price);\n  }\n  return Object.values(g)\n    .sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name))\n    .map((e) => ({ name: e.name, orders: e.orders, revenue: round2(e.revenue), share_pct: y.revenue ? round1((e.revenue / y.revenue) * 100) : null }));\n}\nconst byChannel = split((o) => (text(o.source_name).toLowerCase() === 'pos' ? 'Retail (POS)' : 'Online'));\nconst allStores = split(storeOf);\nconst topStores = allStores.slice(0, topN);\n\nconst warnings = [];\nif (y.orders === 0) warnings.push('No orders found for ' + day + '. Check the data source and the timezone setting.');\nif (!(byDay[dayBefore] || []).length) warnings.push('No orders found for the day before (' + dayBefore + '), so day-over-day change is n/a.');\nif (!(byDay[lastWeek] || []).length) warnings.push('No orders found for the same weekday last week (' + lastWeek + '), so that comparison is n/a.');\n\nconst facts = {\n  brand: String(cfg.brandName),\n  currency: currency,\n  report_date: day,\n  weekday: weekdayOf(day),\n  revenue: y.revenue,\n  orders: y.orders,\n  aov: y.aov,\n  units: y.units,\n  vs_day_before: compare(dayBefore),\n  vs_same_weekday_last_week: compare(lastWeek),\n  top_products: topProducts,\n  by_channel: byChannel,\n  top_stores: topStores,\n  stores_not_shown: Math.max(0, allStores.length - topStores.length),\n  warnings: warnings,\n};\nreturn [{ json: { facts: facts } }];\n"
+      }
+    },
+    {
+      "id": "8eacdc38-d30b-471b-823b-2dc3a81ca758",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// Builds the fallback brief from the facts first, then the (optional) LLM request.\nconst cfg = $('Config').first().json;\nconst f = $input.first().json.facts;\nconst cur = f.currency;\n\nconst money = (n) => (n === null || n === undefined ? 'n/a' : cur + ' ' + n.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','));\nconst pct = (n) => (n === null || n === undefined ? 'n/a' : (n > 0 ? '+' : '') + n + '%');\nconst cmp = (c) =>\n  c.orders === 0\n    ? 'n/a (no orders on ' + c.date + ')'\n    : 'revenue ' + pct(c.revenue_change.pct) + ', orders ' + pct(c.orders_change.pct) + ', AOV ' + pct(c.aov_change.pct);\n\nconst lines = [];\nlines.push('Daily sales brief - ' + f.brand + ' - ' + f.weekday + ' ' + f.report_date);\nlines.push('Revenue ' + money(f.revenue) + ' from ' + f.orders + ' orders (AOV ' + money(f.aov) + ', ' + f.units + ' units).');\nlines.push('Vs day before (' + f.vs_day_before.weekday + ' ' + f.vs_day_before.date + '): ' + cmp(f.vs_day_before) + '.');\nlines.push('Vs same weekday last week (' + f.vs_same_weekday_last_week.date + '): ' + cmp(f.vs_same_weekday_last_week) + '.');\nif (f.top_products.length) {\n  lines.push('Top products: ' + f.top_products.map((p) => p.rank + '. ' + (p.sku || p.title) + ' ' + money(p.revenue) + ' (' + p.units + ' units)').join('; ') + '.');\n}\nif (f.by_channel.length) {\n  lines.push('Channels: ' + f.by_channel.map((c) => c.name + ' ' + c.share_pct + '% (' + c.orders + ' orders)').join(', ') + '.');\n}\nif (f.top_stores.length) {\n  lines.push('Top places: ' + f.top_stores.map((s) => s.name + ' ' + money(s.revenue)).join('; ') + '.');\n}\nfor (const w of f.warnings) lines.push('Note: ' + w);\nconst templateBrief = lines.join('\\n');\n\nconst system =\n  'You write the daily sales brief for a retail manager.\\n' +\n  'Rules:\\n' +\n  '1. Use only the numbers and names present in FACTS_JSON. Never calculate, estimate, round differently, abbreviate (no k or M) or invent a number, product, store or cause.\\n' +\n  '2. Write numbers exactly as they appear in FACTS_JSON. Put the currency code before money amounts.\\n' +\n  '3. If a value is null or n/a, write n/a. If warnings is not empty, mention each warning in one line.\\n' +\n  '4. State what changed and by how much. Do not explain causes and do not give advice.\\n' +\n  '5. Plain text, 5 to 8 short lines, no markdown, no emoji, at most 120 words.';\n\nreturn [\n  {\n    json: {\n      facts: f,\n      template_brief: templateBrief,\n      llm_request: {\n        model: String(cfg.llmModel),\n        max_tokens: 500,\n        system: system,\n        messages: [{ role: 'user', content: 'FACTS_JSON:\\n' + JSON.stringify(f) }],\n      },\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "c09d70b0-b90f-4d2f-8d49-587cc024fc04",
+      "name": "Use LLM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "491e7841-4f94-4595-86fe-f0a80d7aa900",
+              "leftValue": "={{ $('Config').first().json.useLlm === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "47ca53b6-2cbb-4662-8067-d51ed2519f76",
+      "name": "Anthropic: Write Brief (optional - disabled)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llm_request) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ee2b8888-ea37-46ba-8f1f-41ee64edcc4a",
+      "name": "Finalize Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// Use the LLM brief only if it passes the checks, otherwise the template brief.\n// Input is either the Anthropic response (LLM path) or the Build Prompt item (no-LLM path).\nconst base = $('Build Prompt').first().json;\nconst input = $input.first().json;\nconst llmText = input && Array.isArray(input.content) && input.content[0] ? String(input.content[0].text || '') : '';\n\nfunction numbersIn(s) {\n  return (String(s).match(/\\d[\\d,]*\\.?\\d*/g) || [])\n    .map((t) => ({ val: Number(t.replace(/,/g, '').replace(/\\.$/, '')), dec: ((t.split('.')[1] || '').match(/\\d/g) || []).length }))\n    .filter((x) => !Number.isNaN(x.val));\n}\n// Every number in the LLM text must match a number in the facts (compared by absolute value, within its own rounding).\nfunction unknownNumbers(text, facts) {\n  const known = numbersIn(JSON.stringify(facts)).map((x) => Math.abs(x.val));\n  return numbersIn(text).filter((n) => !known.some((k) => Math.abs(k - n.val) <= 0.5 * Math.pow(10, -n.dec) + 1e-9));\n}\n\nlet brief = base.template_brief;\nlet source = 'template';\nlet note = llmText ? '' : 'LLM not used or returned no text';\nif (llmText) {\n  const lines = llmText.split('\\n').map((l) => l.trim()).filter(Boolean);\n  const unknown = unknownNumbers(llmText, base.facts);\n  if (lines.length < 3 || lines.length > 12) note = 'LLM output rejected: expected 3-12 lines, got ' + lines.length;\n  else if (unknown.length) note = 'LLM output rejected: numbers not found in facts: ' + unknown.map((n) => n.val).join(', ');\n  else {\n    brief = lines.join('\\n');\n    source = 'llm';\n    note = '';\n  }\n}\nreturn [{ json: { brief: brief, summary_source: source, summary_note: note, facts: base.facts } }];\n"
+      }
+    },
+    {
+      "id": "03e5a21b-82b4-48de-8889-5a1038d7cff2",
+      "name": "Mode is live? (delivery)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2340,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "31c0186a-4138-4a48-8f2b-becb81690bfd",
+              "leftValue": "={{ $('Config').first().json.mode }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "live"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2c0bbe15-952e-42c3-8682-7c9fcac2b145",
+      "name": "Deliver to Slack?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2600,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8ced04c7-58ae-4aeb-8d73-8ec9598291b0",
+              "leftValue": "={{ $('Config').first().json.deliveryChannel }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "slack"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "654bca23-6909-49b7-8b96-a83d653a42fd",
+      "name": "Slack: Send Brief (LIVE - disabled)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        2860,
+        120
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.slackChannelId }}"
+        },
+        "messageType": "text",
+        "text": "={{ $json.brief }}",
+        "otherOptions": {}
+      },
+      "disabled": true
+    },
+    {
+      "id": "7f5b9334-387e-4345-89de-58270c3aaaff",
+      "name": "Telegram: Send Brief (LIVE - disabled)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Config').first().json.telegramChatId }}",
+        "text": "={{ $json.brief }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "09229794-7129-4929-8d77-ba7c3851a07a",
+      "name": "Demo Output (DEFAULT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        480
+      ],
+      "parameters": {
+        "jsCode": "// Demo result: nothing is sent. Shows the brief and the computed facts it was written from.\nconst r = $input.first().json;\nreturn [\n  {\n    json: {\n      mode: 'demo',\n      note: 'Demo run: nothing was sent to Telegram or Slack.',\n      brief: r.brief,\n      summary_source: r.summary_source,\n      summary_note: r.summary_note,\n      facts: r.facts,\n    },\n  },\n];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (daily 07:00)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (demo run)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Mode is live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode is live?": {
+      "main": [
+        [
+          {
+            "node": "Shopify: Get Orders (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demo Orders (DEFAULT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify: Get Orders (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Orders (DEFAULT)": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute KPIs": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Use LLM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use LLM?": {
+      "main": [
+        [
+          {
+            "node": "Anthropic: Write Brief (optional - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalize Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic: Write Brief (optional - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Finalize Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Brief": {
+      "main": [
+        [
+          {
+            "node": "Mode is live? (delivery)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode is live? (delivery)": {
+      "main": [
+        [
+          {
+            "node": "Deliver to Slack?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demo Output (DEFAULT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deliver to Slack?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Send Brief (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: Send Brief (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true
+  }
+}

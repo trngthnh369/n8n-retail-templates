@@ -1,0 +1,850 @@
+{
+  "name": "Size Stockout Detector with Approval (demo + live)",
+  "nodes": [
+    {
+      "id": "e00f749f-d972-4874-8213-95c55a3056f1",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -420
+      ],
+      "parameters": {
+        "content": "## Size Stockout Detector\nFinds hero SKU sizes that are empty at a store while the warehouse or another store still has stock, then proposes transfers, ranked by lost demand and capped per run. A person approves before anything is marked as approved.\n\n**Runs with no credentials.** Click \"Test workflow\" on the Manual Trigger. The demo uses a synthetic snapshot (12 stores, 1 warehouse, 20 SKUs, sizes 38-44). Nothing is sent or written, and the demo never reaches the approval step.\n\n### Setup (live)\n1. In **Config** set `mode` to `live`, list your hero SKUs in `heroSkus`, set `warehouseName` to the location name used in your inventory sheet, set `sheetId` and `telegramChatId`.\n2. Inventory sheet tab \"inventory\" needs the columns: store, sku, size, on_hand, sold_30d. The warehouse is the row group whose store equals warehouseName.\n3. Enable the nodes marked LIVE and select your Google Sheets and Telegram credentials. LIVE nodes are disabled by default so the editor does not ask for credentials.\n4. Create two empty tabs: \"proposals\" and \"approved_transfers\" (header row = the field names written by the Code nodes).\n5. Activate the workflow. It runs daily at 08:00 (workflow timezone).",
+        "height": 420,
+        "width": 680,
+        "color": 4
+      }
+    },
+    {
+      "id": "09c30104-520d-4806-810f-93d594986054",
+      "name": "Note - Logic",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        640
+      ],
+      "parameters": {
+        "content": "### Rules (Code node \"Detect Transfers\")\n- gap = hero SKU size with on_hand 0 at a store and demand above 0\n- demand = the store's sold_30d, or the network average if it sold 0 during a long stock-out\n- source = warehouse first (preferWarehouse), otherwise the store with the most cover days\n- cover days = on_hand / (sold_30d / 30)\n- a donor is never reduced below donorMinKeep units and needs at least minDonorCoverDays of cover\n- stock is reserved as it is allocated, so one unit is never proposed twice\n- at most maxTransfers proposals per run, ranked by demand",
+        "height": 380,
+        "width": 560,
+        "color": 7
+      }
+    },
+    {
+      "id": "2d62e014-bf9c-4de3-8351-de314f8d8ef7",
+      "name": "Note - LLM",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        480
+      ],
+      "parameters": {
+        "content": "### Optional LLM summary\nThe 5-line summary is always built first from a template. If Config.useLlm is true and the HTTP node is enabled, an Anthropic model rewrites it from the computed facts only. The result is accepted only if it has exactly 5 lines and every number appears in the facts; otherwise the template is used and summary_note says why.\nCredential: Header Auth with name \"x-api-key\". Model name: Config.llmModel.",
+        "height": 300,
+        "width": 540,
+        "color": 6
+      }
+    },
+    {
+      "id": "d6fdb58d-ea9e-4c14-89fd-0640d714eba6",
+      "name": "Note - Approval",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        700
+      ],
+      "parameters": {
+        "content": "### Human approval (live only)\nTelegram sends the summary and a link to an n8n Form. The workflow waits (up to 24 hours) for Decision = approve or reject. Only \"approve\" continues. A timeout or \"reject\" ends in \"Rejected or timed out\" and nothing is written to approved_transfers. Ranked proposals are written to the \"proposals\" tab with status \"proposed\" before approval.\nNothing in this template moves stock. The approved_transfers tab is the hand-off list for the people who do.",
+        "height": 200,
+        "width": 700,
+        "color": 5
+      }
+    },
+    {
+      "id": "ec91b666-9387-4991-8aa4-a0325d8dfdf0",
+      "name": "Schedule Trigger (daily 08:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5adaf18b-a6b0-41a8-82a7-8246fd5892da",
+      "name": "Manual Trigger (demo run)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        360
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ac984553-932f-4052-8ccb-87967a9d27b1",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        280
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2247eb34-730b-4f9c-8549-0a860157762d",
+              "name": "mode",
+              "value": "demo",
+              "type": "string"
+            },
+            {
+              "id": "8e36d320-0545-446c-831d-5798c39f3438",
+              "name": "heroSkus",
+              "value": "SKU-1001,SKU-1002,SKU-1003,SKU-1004,SKU-1005",
+              "type": "string"
+            },
+            {
+              "id": "93c01e04-8a04-4aaf-8808-af87a63e5ce2",
+              "name": "warehouseName",
+              "value": "Warehouse W1",
+              "type": "string"
+            },
+            {
+              "id": "d0a3c66b-f4fa-481c-817c-9981249fee99",
+              "name": "maxTransfers",
+              "value": 12,
+              "type": "number"
+            },
+            {
+              "id": "60bf26ab-3958-4fc1-813a-1bfe30db7afb",
+              "name": "targetUnitsPerSize",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "34c886bd-f198-4241-88ac-f37598de0983",
+              "name": "donorMinKeep",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "09705804-4e25-4af6-837d-f8c1628084f7",
+              "name": "minDonorCoverDays",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "a5ec7e5d-e4e1-468f-8ed5-9f4ef4a294b2",
+              "name": "preferWarehouse",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "130c75a2-5ed4-475b-8545-188a086a8f7d",
+              "name": "useLlm",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "ef01f070-20c9-4ab8-844f-ac22ee1977a8",
+              "name": "llmModel",
+              "value": "claude-sonnet-5-5",
+              "type": "string"
+            },
+            {
+              "id": "1e90ae2b-2bf6-4b9a-892c-87d30e29575b",
+              "name": "telegramChatId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "d458f252-e3ac-436a-8906-15e433a90b9f",
+              "name": "sheetId",
+              "value": "YOUR_GOOGLE_SHEET_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "5c3353c8-3c13-46e6-8edd-61e316d6f6aa",
+      "name": "Mode is live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9fc02c5b-d743-40b6-8666-8b1ab0d2b601",
+              "leftValue": "={{ $json.mode }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "live"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bfc24826-b989-4a42-808d-b67dd9bcdbbe",
+      "name": "Sheets: Read Inventory (LIVE - disabled)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        780,
+        200
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventory"
+        },
+        "options": {}
+      },
+      "disabled": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "6f7add98-9ac5-4c26-88c5-17d5e0129680",
+      "name": "Demo Inventory (DEFAULT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        380
+      ],
+      "parameters": {
+        "jsCode": "// DEMO DATA - synthetic inventory snapshot. 12 stores + 1 warehouse, 20 SKUs, sizes 38-44.\n// One item per (location, sku, size) with on_hand units and units sold in the last 30 days.\n// Deterministic: a seeded generator, so every run returns the same snapshot.\nfunction makeRng(seed) {\n  let s = seed >>> 0;\n  return function () {\n    s = (s + 0x6d2b79f5) >>> 0;\n    let t = s;\n    t = Math.imul(t ^ (t >>> 15), t | 1);\n    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);\n    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\n  };\n}\nconst rand = makeRng(77031);\nconst pad = (n, w) => String(n).padStart(w, '0');\nconst cfg = $('Config').first().json;\nconst warehouse = String(cfg.warehouseName);\nconst heroList = String(cfg.heroSkus).split(',').map((s) => s.trim());\n\nconst stores = Array.from({ length: 12 }, (_, i) => 'Store A' + pad(i + 1, 2));\nconst skus = Array.from({ length: 20 }, (_, i) => 'SKU-' + (1001 + i));\nconst sizes = [38, 39, 40, 41, 42, 43, 44];\nconst curve = [0.5, 0.8, 1.2, 1.4, 1.2, 0.8, 0.5]; // mid sizes sell more\nconst storeScale = stores.map(() => 0.6 + rand() * 1.0);\n\nconst rows = [];\nstores.forEach((store, si) => {\n  skus.forEach((sku) => {\n    const isHero = heroList.includes(sku);\n    const skuBase = 2 + Math.floor(rand() * 5);\n    sizes.forEach((size, zi) => {\n      const sold = Math.floor(skuBase * curve[zi] * storeScale[si] * (isHero ? 2 : 1) * (0.5 + rand()));\n      let onHand = Math.floor(sold * (0.5 + rand() * 3));\n      if (isHero && rand() < 0.07 && sold > 0) onHand = 0; // hero stock-out with proven demand\n      if (!isHero && rand() < 0.1) onHand = 0;\n      rows.push({ json: { store: store, sku: sku, size: size, on_hand: onHand, sold_30d: sold } });\n    });\n  });\n});\nskus.forEach((sku) => {\n  sizes.forEach((size, zi) => {\n    const onHand = rand() < 0.35 ? 0 : Math.floor(curve[zi] * (4 + rand() * 20));\n    rows.push({ json: { store: warehouse, sku: sku, size: size, on_hand: onHand, sold_30d: 0 } });\n  });\n});\nreturn rows;\n"
+      }
+    },
+    {
+      "id": "fecd7468-0355-488d-8752-dfa806e268f4",
+      "name": "Detect Transfers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// Deterministic stock-out detection and transfer proposals. No LLM involved.\n//\n// Definitions\n//   hero SKU      : a SKU listed in Config.heroSkus\n//   gap           : hero SKU + size with on_hand = 0 at a store, and demand > 0\n//   demand_30d    : units sold at that store in the last 30 days; if the store sold 0 (long stock-out),\n//                   the average of stores that still have stock is used and demand_source says so\n//   cover_days    : on_hand / (sold_30d / 30); a donor with no sales has unlimited cover\n//   donor rules   : never drop a donor below donorMinKeep units; store donors need cover >= minDonorCoverDays\n//   source order  : warehouse first when preferWarehouse is true, otherwise (or when the warehouse is\n//                   empty) the store donor with the highest cover\n//   ranking       : by demand_30d (units a gap loses per month), highest first\n//   cap           : at most maxTransfers proposals per run\nconst cfg = $('Config').first().json;\nconst heroSkus = String(cfg.heroSkus).split(',').map((s) => s.trim()).filter(Boolean);\nconst warehouse = String(cfg.warehouseName);\nconst maxTransfers = Number(cfg.maxTransfers);\nconst targetUnits = Number(cfg.targetUnitsPerSize);\nconst donorMinKeep = Number(cfg.donorMinKeep);\nconst minCoverDays = Number(cfg.minDonorCoverDays);\nconst preferWarehouse = cfg.preferWarehouse === true;\nconst round1 = (n) => Math.round(n * 10) / 10;\n\nconst incoming = $input.all();\nif (incoming.length > 0 && !incoming.some((i) => i.json.sku !== undefined && i.json.store !== undefined)) {\n  // A disabled live node passes its input through unchanged, which would end up here.\n  throw new Error('No inventory rows received. In live mode, enable the node \"Sheets: Read Inventory (LIVE)\".');\n}\n// Group by sku|size. Values may arrive as strings from a spreadsheet.\nconst cells = {};\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!heroSkus.includes(String(r.sku))) continue;\n  const key = r.sku + '|' + Number(r.size);\n  const c = cells[key] || (cells[key] = { sku: String(r.sku), size: Number(r.size), warehouse: 0, stores: [] });\n  const onHand = Math.max(0, Number(r.on_hand) || 0);\n  const sold = Math.max(0, Number(r.sold_30d) || 0);\n  if (String(r.store) === warehouse) c.warehouse += onHand;\n  else c.stores.push({ store: String(r.store), on_hand: onHand, sold_30d: sold });\n}\n\nif (Object.keys(cells).length === 0) {\n  throw new Error('No inventory rows match the hero SKUs in Config.heroSkus. Check the SKU names.');\n}\n\n// 1. Find gaps\nconst gaps = [];\nlet heroCells = 0;\nfor (const c of Object.values(cells)) {\n  heroCells += c.stores.length;\n  const withStock = c.stores.filter((s) => s.on_hand > 0);\n  const avgSold = withStock.length ? withStock.reduce((n, s) => n + s.sold_30d, 0) / withStock.length : 0;\n  for (const s of c.stores) {\n    if (s.on_hand !== 0) continue;\n    const ownDemand = s.sold_30d > 0;\n    const demand = ownDemand ? s.sold_30d : avgSold;\n    if (demand <= 0) continue;\n    gaps.push({ cell: c, store: s.store, demand_30d: round1(demand), demand_source: ownDemand ? 'store sales' : 'network average' });\n  }\n}\ngaps.sort((a, b) => b.demand_30d - a.demand_30d || a.store.localeCompare(b.store) || a.cell.sku.localeCompare(b.cell.sku) || a.cell.size - b.cell.size);\n\n// 2. Allocate sources, decrementing stock as we go so one unit is never promised twice\nconst proposals = [];\nconst unmatched = [];\nconst deferred = [];\nconst coverOf = (s) => (s.sold_30d > 0 ? s.on_hand / (s.sold_30d / 30) : Infinity);\n\nfor (const g of gaps) {\n  const c = g.cell;\n  let source = null;\n  if (preferWarehouse && c.warehouse >= 1) {\n    source = { type: 'warehouse', name: warehouse, qty: Math.min(targetUnits, c.warehouse), cover: null };\n  }\n  if (!source) {\n    const donors = c.stores\n      .filter((s) => s.store !== g.store && s.on_hand - donorMinKeep >= 1 && coverOf(s) >= minCoverDays)\n      .sort((a, b) => coverOf(b) - coverOf(a) || b.on_hand - a.on_hand || a.store.localeCompare(b.store));\n    if (donors.length) {\n      const d = donors[0];\n      source = { type: 'store', name: d.store, qty: Math.min(targetUnits, d.on_hand - donorMinKeep), cover: coverOf(d), donor: d };\n    } else if (!preferWarehouse && c.warehouse >= 1) {\n      source = { type: 'warehouse', name: warehouse, qty: Math.min(targetUnits, c.warehouse), cover: null };\n    }\n  }\n  if (!source) {\n    unmatched.push({ sku: c.sku, size: c.size, store: g.store, demand_30d: g.demand_30d, note: 'no stock available anywhere: reorder' });\n    continue;\n  }\n  if (proposals.length >= maxTransfers) {\n    deferred.push({ sku: c.sku, size: c.size, store: g.store, demand_30d: g.demand_30d });\n    continue;\n  }\n  // reserve stock\n  if (source.type === 'warehouse') c.warehouse -= source.qty;\n  else source.donor.on_hand -= source.qty;\n  proposals.push({\n    rank: proposals.length + 1,\n    sku: c.sku,\n    size: c.size,\n    to_store: g.store,\n    from_location: source.name,\n    from_type: source.type,\n    qty: source.qty,\n    demand_30d: g.demand_30d,\n    demand_source: g.demand_source,\n    donor_cover_days: source.cover === null || source.cover === Infinity ? null : round1(source.cover),\n  });\n}\n\n// 3. Facts used for the summary (the LLM may only quote numbers from here)\nconst byStore = {};\nfor (const g of gaps) byStore[g.store] = (byStore[g.store] || 0) + 1;\nconst topStore = Object.entries(byStore).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;\nconst facts = {\n  hero_skus: heroSkus.length,\n  hero_size_cells_checked: heroCells,\n  gaps_found: gaps.length,\n  stores_with_gaps: Object.keys(byStore).length,\n  transfers_proposed: proposals.length,\n  from_warehouse: proposals.filter((p) => p.from_type === 'warehouse').length,\n  from_stores: proposals.filter((p) => p.from_type === 'store').length,\n  units_proposed: proposals.reduce((n, p) => n + p.qty, 0),\n  deferred_by_cap: deferred.length,\n  max_transfers_cap: maxTransfers,\n  no_stock_anywhere: unmatched.length,\n  top_proposal: proposals[0] || null,\n  most_gaps_store: topStore ? { store: topStore[0], gaps: topStore[1] } : null,\n};\n\nreturn [\n  {\n    json: {\n      kind: 'report',\n      run_date: new Date().toISOString().slice(0, 10),\n      facts: facts,\n      proposals: proposals,\n      unmatched: unmatched.slice(0, 20),\n      deferred: deferred.slice(0, 20),\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "a7721ef5-3039-4655-897b-1323c13fbc4a",
+      "name": "Build Summary Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// Always builds the fallback summary first, then the (optional) LLM request.\nconst cfg = $('Config').first().json;\nconst report = $input.first().json;\nconst f = report.facts;\n\nconst lines = [];\nlines.push(\n  f.gaps_found + ' hero size gaps found in ' + f.stores_with_gaps + ' stores (' + f.hero_skus + ' hero SKUs, ' + f.hero_size_cells_checked + ' store-size cells checked).'\n);\nif (f.top_proposal) {\n  const t = f.top_proposal;\n  lines.push('Highest priority: ' + t.sku + ' size ' + t.size + ' at ' + t.to_store + ', demand ' + t.demand_30d + ' units in 30 days, proposed from ' + t.from_location + ' (' + t.qty + ' units).');\n} else {\n  lines.push('No transfer proposals this run.');\n}\nlines.push(f.transfers_proposed + ' transfers proposed (' + f.units_proposed + ' units): ' + f.from_warehouse + ' from the warehouse, ' + f.from_stores + ' from stores. ' + f.deferred_by_cap + ' more are deferred by the cap of ' + f.max_transfers_cap + '.');\nlines.push(\n  (f.most_gaps_store ? 'Most gaps: ' + f.most_gaps_store.store + ' (' + f.most_gaps_store.gaps + '). ' : '') + f.no_stock_anywhere + ' gaps have no stock anywhere and need a reorder.'\n);\nlines.push('No stock moves until a person approves the proposals.');\nconst templateSummary = lines.join('\\n');\n\nconst system =\n  'You write a 5-line operations summary for a retail inventory team.\\n' +\n  'Rules:\\n' +\n  '1. Use only the facts and numbers present in FACTS_JSON. Never calculate, estimate, round differently or invent a number, store, SKU or size.\\n' +\n  '2. If a value is null or missing, write n/a.\\n' +\n  '3. Output exactly 5 lines of plain text. No bullets, no markdown, no emoji.\\n' +\n  '4. Line 5 must say that no stock moves until a person approves the proposals.';\n\nreturn [\n  {\n    json: {\n      ...report,\n      template_summary: templateSummary,\n      llm_request: {\n        model: String(cfg.llmModel),\n        max_tokens: 400,\n        system: system,\n        messages: [{ role: 'user', content: 'FACTS_JSON:\\n' + JSON.stringify(f) }],\n      },\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "e7507c7a-f323-4296-84db-2b4cd6747239",
+      "name": "Use LLM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "491e7841-4f94-4595-86fe-f0a80d7aa900",
+              "leftValue": "={{ $('Config').first().json.useLlm === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4ce21520-2f65-4d9c-86fe-5ce86b6fa343",
+      "name": "Anthropic: Write Summary (optional - disabled)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llm_request) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "44a17ce2-d30f-474f-8725-e941e439b1c2",
+      "name": "Merge Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// Pick the LLM summary only if it passes the checks, otherwise use the template summary.\n// Input is either the Anthropic response (LLM path) or the Build Summary Prompt item (no-LLM path).\nconst base = $('Build Summary Prompt').first().json;\nconst input = $input.first().json;\nconst llmText = input && Array.isArray(input.content) && input.content[0] ? String(input.content[0].text || '') : '';\n\nfunction numbersIn(s) {\n  return (String(s).match(/\\d[\\d,]*\\.?\\d*/g) || [])\n    .map((t) => ({ val: Number(t.replace(/,/g, '').replace(/\\.$/, '')), dec: ((t.split('.')[1] || '').match(/\\d/g) || []).length }))\n    .filter((x) => !Number.isNaN(x.val));\n}\n// Every number in the LLM text must match a number in the facts, within its own rounding.\nfunction unknownNumbers(text, facts) {\n  const known = numbersIn(JSON.stringify(facts)).map((x) => x.val);\n  return numbersIn(text).filter((n) => !known.some((k) => Math.abs(k - n.val) <= 0.5 * Math.pow(10, -n.dec) + 1e-9));\n}\n\nlet summary = base.template_summary;\nlet source = 'template';\nlet note = llmText ? '' : 'LLM not used or returned no text';\nif (llmText) {\n  const lines = llmText.split('\\n').map((l) => l.trim()).filter(Boolean);\n  const unknown = unknownNumbers(llmText, base.facts);\n  if (lines.length !== 5) note = 'LLM output rejected: expected 5 lines, got ' + lines.length;\n  else if (unknown.length) note = 'LLM output rejected: numbers not found in facts: ' + unknown.map((n) => n.val).join(', ');\n  else {\n    summary = lines.join('\\n');\n    source = 'llm';\n    note = '';\n  }\n}\nconst out = { ...base, summary: summary, summary_source: source, summary_note: note };\ndelete out.llm_request;\ndelete out.template_summary;\nreturn [{ json: out }];\n"
+      }
+    },
+    {
+      "id": "33d43bdc-43a9-45e3-8b0c-c230a807e561",
+      "name": "Mode is live? (output)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2340,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "31c0186a-4138-4a48-8f2b-becb81690bfd",
+              "leftValue": "={{ $('Config').first().json.mode }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "live"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0a0b7678-9141-4816-80b4-8dbe2bc28763",
+      "name": "Proposal Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        80
+      ],
+      "parameters": {
+        "jsCode": "// One row per proposal, flat columns for Google Sheets. Written BEFORE approval, status = proposed.\nconst r = $('Merge Summary').first().json;\nreturn r.proposals.map((p) => ({\n  json: {\n    run_date: r.run_date,\n    rank: p.rank,\n    sku: p.sku,\n    size: p.size,\n    to_store: p.to_store,\n    from_location: p.from_location,\n    qty: p.qty,\n    demand_30d: p.demand_30d,\n    status: 'proposed',\n  },\n}));\n"
+      }
+    },
+    {
+      "id": "9cad3e30-02b6-4aa7-8f97-bd4869b89851",
+      "name": "Sheets: Append Proposals (LIVE - disabled)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2860,
+        80
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "proposals"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "disabled": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "8a871864-c9e3-47d1-8990-62587fc78813",
+      "name": "Telegram: Ask Approval (LIVE - disabled)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2600,
+        280
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Config').first().json.telegramChatId }}",
+        "text": "={{ 'Stock transfer proposals - ' + $json.run_date + '\\n\\n' + $json.summary + '\\n\\nTop proposals:\\n' + $json.proposals.slice(0, 10).map(p => p.rank + '. ' + p.sku + ' size ' + p.size + ': ' + p.from_location + ' -> ' + p.to_store + ' x' + p.qty).join('\\n') + '\\n\\nApprove or reject: ' + $execution.resumeFormUrl }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "e8aff573-8d6b-4db0-8046-0bc7865f3373",
+      "name": "Wait for Approval (form)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        280
+      ],
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Approve stock transfer proposals",
+        "formDescription": "Review the ranked proposals in the Telegram message or the proposals tab, then choose a decision.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "approve"
+                  },
+                  {
+                    "option": "reject"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Approver",
+              "fieldType": "text",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {},
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 24,
+        "resumeUnit": "hours"
+      },
+      "webhookId": "3e9a1c7b-6d24-4f08-b5a3-91c0e2d47f65"
+    },
+    {
+      "id": "047a508f-da4e-401e-8419-75d4b27accca",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2b2f2af1-f811-498a-865b-102adbe67625",
+              "leftValue": "={{ $json.Decision === 'approve' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d450bde9-f804-41b7-862f-60c88aa95f0c",
+      "name": "Approved Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3380,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Runs only after a person chose \"approve\" in the approval form.\nconst r = $('Merge Summary').first().json;\nconst form = $input.first().json;\nconst approver = String(form.Approver || 'unknown');\nconst decidedAt = new Date().toISOString();\nreturn r.proposals.map((p) => ({\n  json: {\n    run_date: r.run_date,\n    rank: p.rank,\n    sku: p.sku,\n    size: p.size,\n    to_store: p.to_store,\n    from_location: p.from_location,\n    qty: p.qty,\n    status: 'approved',\n    approved_by: approver,\n    decided_at: decidedAt,\n  },\n}));\n"
+      }
+    },
+    {
+      "id": "84197d2f-3d65-4fae-868d-4962ff75eb39",
+      "name": "Sheets: Append Approved (LIVE - disabled)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3640,
+        200
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "approved_transfers"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "disabled": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "c139f5a8-d3cd-4cd3-80ff-4ebb9e9733e0",
+      "name": "Rejected or timed out",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3380,
+        380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "3bbedc78-8728-47da-881a-c9fac3a3a46f",
+      "name": "Demo Output (DEFAULT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        520
+      ],
+      "parameters": {
+        "jsCode": "// Demo result: nothing is sent, written or approved. Shows what a person would be asked to approve.\nconst r = $input.first().json;\nconst table = r.proposals.map(\n  (p) =>\n    String(p.rank).padStart(2, ' ') + '. ' + p.sku + ' size ' + p.size + ' | ' + p.from_location + ' -> ' + p.to_store +\n    ' | qty ' + p.qty + ' | demand ' + p.demand_30d + '/30d'\n);\nreturn [\n  {\n    json: {\n      mode: 'demo',\n      status: 'pending_approval',\n      note: 'Demo run: nothing was sent, written or approved.',\n      summary: r.summary,\n      summary_source: r.summary_source,\n      summary_note: r.summary_note,\n      ranked_table: table.join('\\n'),\n      proposals: r.proposals,\n      unmatched: r.unmatched,\n      deferred: r.deferred,\n      facts: r.facts,\n    },\n  },\n];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (daily 08:00)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (demo run)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Mode is live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode is live?": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Read Inventory (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demo Inventory (DEFAULT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Read Inventory (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Detect Transfers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Inventory (DEFAULT)": {
+      "main": [
+        [
+          {
+            "node": "Detect Transfers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Transfers": {
+      "main": [
+        [
+          {
+            "node": "Build Summary Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary Prompt": {
+      "main": [
+        [
+          {
+            "node": "Use LLM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use LLM?": {
+      "main": [
+        [
+          {
+            "node": "Anthropic: Write Summary (optional - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic: Write Summary (optional - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Merge Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Summary": {
+      "main": [
+        [
+          {
+            "node": "Mode is live? (output)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode is live? (output)": {
+      "main": [
+        [
+          {
+            "node": "Proposal Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram: Ask Approval (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demo Output (DEFAULT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Proposal Rows": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Append Proposals (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: Ask Approval (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Approval (form)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Approval (form)": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Approved Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected or timed out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved Rows": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Append Approved (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true
+  }
+}

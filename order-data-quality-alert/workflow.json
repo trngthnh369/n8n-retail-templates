@@ -1,0 +1,637 @@
+{
+  "name": "Order Data Quality Alert (demo + live)",
+  "nodes": [
+    {
+      "id": "ee9cadb0-e193-4761-825b-505687cef636",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -520
+      ],
+      "parameters": {
+        "content": "## Order Data Quality Alert\nChecks every order for missing phone or email, invalid phone format, missing shipping address and suspicious discounts. Groups the findings by store and sends one alert per store. A daily digest shows the missing-info rate per store.\n\n**Runs with no credentials.** Click \"Test workflow\" on the Manual Trigger: the demo orders are synthetic and nothing is sent anywhere.\n\n### Setup (live)\n1. Open **Config**, set `mode` to `live`, set `telegramChatId` (and optionally `storeChatMap`).\n2. Real-time: send Shopify \"order created\" webhooks to the Webhook URL, or enable **Shopify Trigger (LIVE)**.\n3. Daily digest: enable **Shopify: Get Orders (LIVE)** and the Schedule Trigger (activate the workflow).\n4. Enable **Telegram: Send Alert (LIVE)** and select your Telegram credential.\n5. Nodes marked LIVE are disabled by default so the editor does not ask for credentials.",
+        "height": 440,
+        "width": 640,
+        "color": 4
+      }
+    },
+    {
+      "id": "7d2ed8a3-7ecb-4a56-84f9-b931999eca7e",
+      "name": "Note - Inputs",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ],
+      "parameters": {
+        "content": "### Entry points\n- **Manual Trigger**: demo run (alerts + digest from synthetic data).\n- **Webhook**: POST one order, an array, or { \"orders\": [...] }. Protect it with header auth before using it in production.\n- **Shopify Trigger (LIVE)**: disabled by default.\n- **Schedule Trigger**: daily digest. Cron is 08:00 in the workflow timezone.\n\nAll entry points pass through **Config**, which sets run_type: order (webhook / Shopify trigger), digest (schedule) or demo (manual).",
+        "height": 560,
+        "width": 300,
+        "color": 7
+      }
+    },
+    {
+      "id": "47e96f0e-ea5e-4c98-877b-45c387caef0a",
+      "name": "Note - Checks",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        640
+      ],
+      "parameters": {
+        "content": "### Rules (Code node \"Check Orders\")\n- missing_phone / missing_email\n- invalid_phone: not digits, wrong length (minPhoneDigits..maxPhoneDigits) or one repeated digit\n- missing_shipping_address: skipped for POS and pickup orders\n- suspicious_discount: discount / line item total above discountThresholdPct\n\nStore is read from the order note attribute \"store\", then store_name, then a \"store:NAME\" tag, then location_id. Edit storeOf() to match your store setup.",
+        "height": 330,
+        "width": 520,
+        "color": 7
+      }
+    },
+    {
+      "id": "c5f38830-1c89-4764-8609-a3cc1e75dbd4",
+      "name": "Note - Output",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        640
+      ],
+      "parameters": {
+        "content": "### Output\nDemo mode: the messages are returned as JSON (see Respond to Webhook / last node output). Live mode: one Telegram message per store, plus one digest message.\nA store with no chat id in storeChatMap uses telegramChatId. If both are empty the message is built but not sent, and the output says so.",
+        "height": 260,
+        "width": 560,
+        "color": 7
+      }
+    },
+    {
+      "id": "9e7f19fd-0006-4986-8cc2-14161c3a6a9c",
+      "name": "Manual Trigger (demo run)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e2f9e027-41b0-4bfa-8240-24dc2e538f4c",
+      "name": "Webhook (real-time order)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        160
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-data-quality-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "5b0f7c1e-3a52-4c5e-9a41-0d7f3e6a8b21"
+    },
+    {
+      "id": "95ab3de9-3954-4507-8699-e80cc8f41f62",
+      "name": "Shopify Trigger (LIVE - disabled)",
+      "type": "n8n-nodes-base.shopifyTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        320
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "topic": "orders/create"
+      },
+      "disabled": true,
+      "webhookId": "8c2d4e6f-1b3a-4d5c-8e7f-2a4b6c8d0e13"
+    },
+    {
+      "id": "a13e594c-41f5-4a51-8bb2-db3ed5867211",
+      "name": "Schedule Trigger (daily digest)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        480
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "66f242e2-e33a-49a8-8be2-2b7fd5850c4a",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        240
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2247eb34-730b-4f9c-8549-0a860157762d",
+              "name": "mode",
+              "value": "demo",
+              "type": "string"
+            },
+            {
+              "id": "f89ac0b9-8ed2-489b-8930-f0bab6692c46",
+              "name": "discountThresholdPct",
+              "value": 40,
+              "type": "number"
+            },
+            {
+              "id": "e8dd9698-436c-459c-8e17-d6911da9c754",
+              "name": "minPhoneDigits",
+              "value": 8,
+              "type": "number"
+            },
+            {
+              "id": "181cd3a1-5b07-4a0e-8b8a-fd87578631c4",
+              "name": "maxPhoneDigits",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "901e5ed7-b04e-4e58-8477-81dc1b200303",
+              "name": "digestWarnRatePct",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "1e90ae2b-2bf6-4b9a-892c-87d30e29575b",
+              "name": "telegramChatId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "11a93830-360a-4c91-80cf-213977a78103",
+              "name": "storeChatMap",
+              "value": "{}",
+              "type": "string"
+            },
+            {
+              "id": "648626b2-0d93-4c00-80d4-dd5f0094e021",
+              "name": "run_type",
+              "value": "={{ ($json.body !== undefined || $json.line_items !== undefined) ? 'order' : ($json.timestamp !== undefined ? 'digest' : 'demo') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "dc9bbe0f-4978-4765-832a-3fbad6d479ab",
+      "name": "Payload received?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b5c1a703-8eaf-412d-887b-e1b869ffd0ad",
+              "leftValue": "={{ $json.run_type }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "order"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1810a425-424b-4084-8c44-0262996e8376",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Unwrap whatever arrived on the real-time path into one item per order.\n// Accepts a Webhook item ({ body: <order> } or { body: { orders: [...] } } or { body: [...] })\n// or a Shopify Trigger item (the order itself).\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  let payload = j.body !== undefined ? j.body : j;\n  if (payload && Array.isArray(payload.orders)) payload = payload.orders;\n  const list = Array.isArray(payload) ? payload : [payload];\n  for (const o of list) {\n    if (o && typeof o === 'object') out.push({ json: o });\n  }\n}\nif (out.length === 0) {\n  throw new Error('Payload contained no order objects. Expected a single order, an array, or { orders: [...] }.');\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "36dc06d2-17a2-47ca-8b3c-f0ca8219bc5e",
+      "name": "Mode is live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9fc02c5b-d743-40b6-8666-8b1ab0d2b601",
+              "leftValue": "={{ $json.mode }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "live"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "027a955d-3b48-4cc9-8f44-9f8065a4c928",
+      "name": "Shopify: Get Orders (LIVE - disabled)",
+      "type": "n8n-nodes-base.shopify",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "order",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "status": "any",
+          "createdAtMin": "={{ $now.minus({ hours: 24 }).toISO() }}"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "7f5cd356-ff28-4b48-8a90-0e00596238b7",
+      "name": "Demo Orders (DEFAULT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        460
+      ],
+      "parameters": {
+        "jsCode": "// DEMO DATA - fully synthetic. No real customers, stores or phone numbers.\n// Orders mimic the shape of a Shopify order payload so the same checks run in demo and live mode.\n// Deterministic: a seeded generator, so every run returns the same 72 orders.\nfunction makeRng(seed) {\n  let s = seed >>> 0;\n  return function () {\n    s = (s + 0x6d2b79f5) >>> 0;\n    let t = s;\n    t = Math.imul(t ^ (t >>> 15), t | 1);\n    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);\n    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\n  };\n}\nconst rand = makeRng(20260101);\nconst pick = (arr) => arr[Math.floor(rand() * arr.length)];\nconst pad = (n, w) => String(n).padStart(w, '0');\n\nconst stores = Array.from({ length: 12 }, (_, i) => 'Store A' + pad(i + 1, 2));\n// Two stores get a higher defect rate so the report has something to rank.\nconst weakStores = { 'Store A03': 2.5, 'Store A09': 2.0 };\n\nconst validPhone = (n) => '+1 555 010 ' + pad(1000 + n, 4);\nconst badPhones = ['12345', '555-ABC-0101', '000000000', '+1 555', '++1 555 010 1000'];\nconst skus = ['SKU-1001', 'SKU-1002', 'SKU-1003', 'SKU-1004', 'SKU-1005', 'SKU-1006'];\n\nconst now = Date.now();\nconst out = [];\nfor (let i = 1; i <= 72; i++) {\n  const isOnline = i % 4 === 0;\n  const store = stores[i % 12];\n  const boost = isOnline ? 1 : weakStores[store] || 1;\n  const hit = (p) => rand() < p * boost;\n\n  const price = 40 + Math.floor(rand() * 220);\n  const qty = 1 + Math.floor(rand() * 3);\n  const gross = price * qty;\n  let discountPct = rand() < 0.5 ? 0 : Math.floor(rand() * 26);\n  if (hit(0.06)) discountPct = 45 + Math.floor(rand() * 30); // suspicious\n  const discount = Math.round(gross * discountPct) / 100;\n\n  let phone = validPhone(i);\n  if (hit(0.12)) phone = '';\n  else if (hit(0.09)) phone = pick(badPhones);\n  const email = hit(0.08) ? '' : 'customer' + pad(i, 3) + '@example.com';\n  const missingAddress = isOnline && hit(0.1);\n\n  out.push({\n    json: {\n      id: 900000 + i,\n      name: '#' + (1000 + i),\n      created_at: new Date(now - Math.floor(rand() * 24 * 3600 * 1000)).toISOString(),\n      source_name: isOnline ? 'web' : 'pos',\n      email: email,\n      phone: phone,\n      customer: { first_name: 'Customer', last_name: pad(i, 3) },\n      total_line_items_price: gross.toFixed(2),\n      total_discounts: discount.toFixed(2),\n      shipping_address:\n        isOnline && !missingAddress\n          ? { address1: pad(i, 3) + ' Example Street', city: 'Sampletown', zip: '00000', country_code: 'US' }\n          : null,\n      shipping_lines: isOnline\n        ? [{ code: 'standard', title: 'Standard shipping' }]\n        : [{ code: 'pickup', title: 'In-store pickup' }],\n      note_attributes: isOnline ? [] : [{ name: 'store', value: store }],\n      line_items: [{ sku: pick(skus), quantity: qty, price: price.toFixed(2) }],\n    },\n  });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "31a746b0-13ad-4ac9-803c-6cfa343f43e5",
+      "name": "Check Orders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Deterministic checks. No LLM involved. One issue code per rule so counts stay comparable over time.\nconst cfg = $('Config').first().json;\nconst runType = String(cfg.run_type);\nconst discountMax = Number(cfg.discountThresholdPct);\nconst minDigits = Number(cfg.minPhoneDigits);\nconst maxDigits = Number(cfg.maxPhoneDigits);\nconst warnRate = Number(cfg.digestWarnRatePct);\n\nconst text = (v) => (v === undefined || v === null ? '' : String(v).trim());\nconst round1 = (n) => Math.round(n * 10) / 10;\n\nfunction storeOf(o) {\n  const attrs = Array.isArray(o.note_attributes) ? o.note_attributes : [];\n  const attr = attrs.find((a) => a && String(a.name).toLowerCase() === 'store');\n  if (attr && text(attr.value)) return text(attr.value);\n  if (text(o.store_name)) return text(o.store_name);\n  const tag = text(o.tags).split(',').map((t) => t.trim()).find((t) => /^store:/i.test(t));\n  if (tag) return tag.replace(/^store:\\s*/i, '');\n  if (o.location_id) return 'Location ' + o.location_id;\n  return 'Online / unassigned';\n}\nfunction phoneOf(o) {\n  const c = o.customer || {};\n  const s = o.shipping_address || {};\n  const b = o.billing_address || {};\n  return text(o.phone) || text(c.phone) || text(s.phone) || text(b.phone);\n}\nfunction emailOf(o) {\n  const c = o.customer || {};\n  return text(o.email) || text(o.contact_email) || text(c.email);\n}\nfunction phoneProblem(raw) {\n  const cleaned = raw.replace(/[\\s().\\-]/g, '');\n  if (!/^\\+?\\d+$/.test(cleaned)) return 'contains characters other than digits, spaces, + ( ) . -';\n  const digits = cleaned.replace(/^\\+/, '');\n  if (digits.length < minDigits || digits.length > maxDigits) {\n    return digits.length + ' digits (allowed ' + minDigits + '-' + maxDigits + ')';\n  }\n  if (/^(\\d)\\1+$/.test(digits)) return 'one repeated digit';\n  return null;\n}\nfunction needsShippingAddress(o) {\n  if (text(o.source_name).toLowerCase() === 'pos') return false;\n  const lines = Array.isArray(o.shipping_lines) ? o.shipping_lines : [];\n  if (lines.some((l) => /pickup/i.test(text(l.code) + ' ' + text(l.title)))) return false;\n  const attrs = Array.isArray(o.note_attributes) ? o.note_attributes : [];\n  if (attrs.some((a) => String(a.name).toLowerCase() === 'delivery' && /pickup/i.test(text(a.value)))) return false;\n  return true;\n}\nfunction discountPct(o) {\n  const gross = Number(o.total_line_items_price !== undefined ? o.total_line_items_price : o.subtotal_price);\n  const disc = Number(o.total_discounts);\n  if (!(gross > 0) || !(disc >= 0)) return 0;\n  return (disc / gross) * 100;\n}\n\nconst stores = {};\nconst ensure = (s) =>\n  stores[s] ||\n  (stores[s] = { store: s, orders_checked: 0, orders_flagged: 0, with_missing_info: 0, counts: {}, flagged: [] });\n\nconst looksLikeOrder = (o) => o && (o.id !== undefined || o.name !== undefined || Array.isArray(o.line_items));\nconst incoming = $input.all().map((i) => i.json);\nconst orders = incoming.filter(looksLikeOrder);\nif (incoming.length > 0 && orders.length === 0) {\n  // A disabled live node passes its input through unchanged, which would end up here.\n  throw new Error('No order data received. In live mode, enable the node \"Shopify: Get Orders (LIVE)\".');\n}\nfor (const o of orders) {\n  const st = ensure(storeOf(o));\n  const issues = [];\n  let missingInfo = false;\n\n  if (!phoneOf(o)) {\n    issues.push({ code: 'missing_phone', detail: 'no phone on order, customer or addresses' });\n    missingInfo = true;\n  } else {\n    const problem = phoneProblem(phoneOf(o));\n    if (problem) issues.push({ code: 'invalid_phone', detail: problem });\n  }\n  if (!emailOf(o)) {\n    issues.push({ code: 'missing_email', detail: 'no email' });\n    missingInfo = true;\n  }\n  if (needsShippingAddress(o)) {\n    const a = o.shipping_address || {};\n    const missing = ['address1', 'city'].filter((k) => !text(a[k]));\n    if (!text(a.country) && !text(a.country_code)) missing.push('country');\n    if (missing.length) {\n      issues.push({ code: 'missing_shipping_address', detail: 'missing ' + missing.join(', ') });\n      missingInfo = true;\n    }\n  }\n  const pct = discountPct(o);\n  if (pct > discountMax) {\n    issues.push({ code: 'suspicious_discount', detail: round1(pct) + '% (limit ' + discountMax + '%)' });\n  }\n\n  st.orders_checked += 1;\n  if (missingInfo) st.with_missing_info += 1;\n  if (issues.length) {\n    st.orders_flagged += 1;\n    for (const x of issues) st.counts[x.code] = (st.counts[x.code] || 0) + 1;\n    st.flagged.push({ order: text(o.name) || String(o.id), issues: issues });\n  }\n}\n\nconst all = Object.values(stores).sort((a, b) => a.store.localeCompare(b.store));\nconst out = [];\n\nif (runType === 'order' || runType === 'demo') {\n  for (const st of all) {\n    if (st.orders_flagged === 0) continue;\n    out.push({\n      json: {\n        kind: 'alert',\n        store: st.store,\n        orders_checked: st.orders_checked,\n        orders_flagged: st.orders_flagged,\n        issue_counts: st.counts,\n        flagged_orders: st.flagged,\n      },\n    });\n  }\n}\nif (runType === 'digest' || runType === 'demo') {\n  const rows = all\n    .map((st) => ({\n      store: st.store,\n      orders: st.orders_checked,\n      with_missing_info: st.with_missing_info,\n      missing_info_rate_pct: st.orders_checked ? round1((st.with_missing_info / st.orders_checked) * 100) : 0,\n    }))\n    .sort((a, b) => b.missing_info_rate_pct - a.missing_info_rate_pct || a.store.localeCompare(b.store));\n  const totalOrders = rows.reduce((n, r) => n + r.orders, 0);\n  const totalMissing = rows.reduce((n, r) => n + r.with_missing_info, 0);\n  out.push({\n    json: {\n      kind: 'digest',\n      orders: totalOrders,\n      with_missing_info: totalMissing,\n      missing_info_rate_pct: totalOrders ? round1((totalMissing / totalOrders) * 100) : 0,\n      warn_rate_pct: warnRate,\n      stores: rows,\n    },\n  });\n}\nif (out.length === 0) {\n  out.push({ json: { kind: 'noop', orders_checked: orders.length, note: 'No issues found in ' + orders.length + ' order(s).' } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "dc23a3d0-4e60-487f-8228-c7e50855fc32",
+      "name": "Format Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Turn each result item into a plain-text message plus routing fields (chat_id, send).\nconst cfg = $('Config').first().json;\nlet chatMap = {};\ntry {\n  chatMap = JSON.parse(String(cfg.storeChatMap || '{}'));\n} catch (e) {\n  chatMap = {};\n}\nconst defaultChat = String(cfg.telegramChatId || '').trim();\n\nconst LABELS = {\n  missing_phone: 'missing phone',\n  invalid_phone: 'invalid phone',\n  missing_email: 'missing email',\n  missing_shipping_address: 'missing shipping address',\n  suspicious_discount: 'suspicious discount',\n};\nconst MAX_LINES = 15;\n\nreturn $input.all().map((item) => {\n  const d = item.json;\n  if (d.kind === 'alert') {\n    const counts = Object.entries(d.issue_counts)\n      .map(([k, v]) => (LABELS[k] || k) + ': ' + v)\n      .join(', ');\n    const lines = d.flagged_orders\n      .slice(0, MAX_LINES)\n      .map((f) => '- ' + f.order + ': ' + f.issues.map((x) => (LABELS[x.code] || x.code) + ' (' + x.detail + ')').join('; '));\n    if (d.flagged_orders.length > MAX_LINES) lines.push('... and ' + (d.flagged_orders.length - MAX_LINES) + ' more');\n    const chat = String(chatMap[d.store] || defaultChat);\n    return {\n      json: {\n        kind: 'alert',\n        store: d.store,\n        chat_id: chat,\n        send: chat !== '',\n        reason_not_sent: chat ? '' : 'no chat id configured',\n        message:\n          'Order data quality - ' + d.store + '\\n' +\n          d.orders_flagged + ' of ' + d.orders_checked + ' orders need attention (' + counts + ')\\n' +\n          lines.join('\\n'),\n      },\n    };\n  }\n  if (d.kind === 'digest') {\n    const lines = d.stores.map(\n      (r) =>\n        (r.missing_info_rate_pct >= d.warn_rate_pct ? '! ' : '  ') +\n        r.store + ': ' + r.missing_info_rate_pct + '% (' + r.with_missing_info + '/' + r.orders + ')'\n    );\n    return {\n      json: {\n        kind: 'digest',\n        store: 'all',\n        chat_id: defaultChat,\n        send: defaultChat !== '',\n        reason_not_sent: defaultChat ? '' : 'no chat id configured',\n        message:\n          'Daily digest - orders with missing phone, email or shipping address\\n' +\n          'Total: ' + d.missing_info_rate_pct + '% (' + d.with_missing_info + '/' + d.orders + ' orders). \"!\" marks stores at or above ' + d.warn_rate_pct + '%\\n' +\n          lines.join('\\n'),\n      },\n    };\n  }\n  return { json: { kind: 'noop', store: '-', chat_id: '', send: false, reason_not_sent: 'nothing to report', message: d.note } };\n});\n"
+      }
+    },
+    {
+      "id": "837f3435-bf33-4100-82bd-785144382450",
+      "name": "Send to Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7eacb1af-32cf-42ac-89cb-6f2d2b0536d2",
+              "leftValue": "={{ $('Config').first().json.mode === 'live' && $json.send === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5a3d4023-ad62-4b2b-8ad6-4147f29a0c1f",
+      "name": "Telegram: Send Alert (LIVE - disabled)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2080,
+        160
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "e3f0ab20-c7e0-40c7-856e-560897732ddc",
+      "name": "Join Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2340,
+        240
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "37c8934b-c726-41a4-8fe2-6e230c4e6508",
+      "name": "Summarize Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// One compact JSON response for the webhook caller / the demo run.\nconst cfg = $('Config').first().json;\nconst msgs = $('Format Messages').all().map((i) => i.json);\nreturn [\n  {\n    json: {\n      mode: cfg.mode,\n      run_type: cfg.run_type,\n      messages_built: msgs.length,\n      messages_sent_to_telegram: cfg.mode === 'live' ? msgs.filter((m) => m.send).length : 0,\n      messages: msgs.map((m) => ({\n        kind: m.kind,\n        store: m.store,\n        would_send: m.send,\n        reason_not_sent: m.reason_not_sent,\n        message: m.message,\n      })),\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "4b85ff6f-8b02-4786-8afa-31a1cc0605d5",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        240
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger (demo run)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (real-time order)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify Trigger (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger (daily digest)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Payload received?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload received?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mode is live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode is live?": {
+      "main": [
+        [
+          {
+            "node": "Shopify: Get Orders (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demo Orders (DEFAULT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Check Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify: Get Orders (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Check Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Orders (DEFAULT)": {
+      "main": [
+        [
+          {
+            "node": "Check Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Orders": {
+      "main": [
+        [
+          {
+            "node": "Format Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Messages": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Send Alert (LIVE - disabled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Join Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Telegram: Send Alert (LIVE - disabled)": {
+      "main": [
+        [
+          {
+            "node": "Join Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join Branches": {
+      "main": [
+        [
+          {
+            "node": "Summarize Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Result": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true
+  }
+}
